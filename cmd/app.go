@@ -24,6 +24,7 @@ func Start(ctx context.Context, request *model.Request, conf *model.PerfConf) {
 }
 
 func printTitle(protocol string) {
+	Request
 	if "http" == protocol {
 		//fmt.Println("__________________________________________________________________________________________")
 		fmt.Println("│****************************************************************************************│")
@@ -52,6 +53,6 @@ func loop(ctx context.Context, group *sync.WaitGroup, statCh chan *model.Report,
 			group.Done()
 			return
 		}
-		_ = client.DoSend(request, statCh)
+		client.DoSend(request, statCh)
 	}
 }

@@ -20,7 +20,7 @@ type HttpClient struct {
 	client0 *http.Client
 }
 
-func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) error {
+func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) {
 	report := &model.Report{}
 	start := time.Now()
 	url := request.Url
@@ -29,7 +29,7 @@ func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) error
 	headers := request.HttpHeader
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
-		return err
+		report.StatCode = 500
 	}
 	for key, val := range headers {
 		req.Header.Add(key, val)
@@ -37,7 +37,7 @@ func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) error
 	client := h.getClient(request.Keepalive, request.ReadTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		report.StatCode = 500
 	}
 	if "sse" == request.Protocol {
 		err = h.handleSse(resp, report, start)
@@ -46,10 +46,9 @@ func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) error
 	}
 	report.Delay = uint64(time.Now().Sub(start).Nanoseconds())
 	if err != nil && err != io.EOF {
-		return err
+		report.StatCode = 500
 	}
 	ch <- report
-	return nil
 }
 
 func (h *HttpClient) handleSse(resp *http.Response, report *model.Report, start time.Time) error {

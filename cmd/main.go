@@ -70,7 +70,19 @@ func createRequest(config *map[string]string) *model.Request {
 	request.SetUrl((*config)["url"])
 	request.SetKeepAlive("true" == getOrDefault(config, "keepalive", "true"))
 	request.SetProtocol((*config)["protocol"])
+	request.HttpHeader = getHeaders(config)
 	return request
+}
+
+func getHeaders(config *map[string]string) map[string]string {
+	headers := make(map[string]string)
+	for key, val := range *config {
+		after, found := strings.CutPrefix(key, "header.")
+		if found {
+			headers[after] = val
+		}
+	}
+	return headers
 }
 
 func getOrDefault(config *map[string]string, key string, dft string) string {
