@@ -23,38 +23,46 @@ type HttpClient struct {
 func (h *HttpClient) DoSend(request *model.Request, ch chan *model.Report) {
 	report := &model.Report{}
 	start := time.Now()
-	url := request.Url
-	body := request.Body
-	method := request.Method
-	headers := request.HttpHeader
-	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	defer func() {
+		report.Delay = uint64(time.Since(start).Nanoseconds())
+		ch <- report
+	}()
+
+	req, err := http.NewRequest(request.Method, request.Url, strings.NewReader(request.Body))
 	if err != nil {
 		report.StatCode = 500
+		return
 	}
-	for key, val := range headers {
-		req.Header.Add(key, val)
+	for k, v := range request.HttpHeader {
+		req.Header.Add(k, v)
 	}
 	client := h.getClient(request.Keepalive, request.ReadTimeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		report.StatCode = 500
+		return
 	}
-	if "sse" == request.Protocol {
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	if strings.EqualFold(request.Protocol, "sse") {
 		err = h.handleSse(resp, report, start)
 	} else {
 		err = h.handleResp(resp, report, start)
 	}
-	report.Delay = uint64(time.Now().Sub(start).Nanoseconds())
 	if err != nil && err != io.EOF {
 		report.StatCode = 500
 	}
-	ch <- report
 }
 
 func (h *HttpClient) handleSse(resp *http.Response, report *model.Report, start time.Time) error {
-	report.StatCode = resp.StatusCode
+	if resp != nil {
+		report.StatCode = resp.StatusCode
+	}
+	if resp == nil || resp.Body == nil {
+		return nil
+	}
 	body := resp.Body
-	defer body.Close()
 	first := true
 	reader := bufio.NewReader(body)
 	for {
@@ -77,9 +85,13 @@ func (h *HttpClient) handleSse(resp *http.Response, report *model.Report, start 
 }
 
 func (h *HttpClient) handleResp(resp *http.Response, report *model.Report, start time.Time) error {
-	report.StatCode = resp.StatusCode
+	if resp != nil {
+		report.StatCode = resp.StatusCode
+	}
+	if resp == nil || resp.Body == nil {
+		return nil
+	}
 	body := resp.Body
-	defer body.Close()
 	reader := bufio.NewReader(body)
 	content, err := io.ReadAll(reader)
 	if err != nil {
